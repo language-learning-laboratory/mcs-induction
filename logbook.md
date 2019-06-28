@@ -1,20 +1,9 @@
 ##2019-06-28 Fri
 
-UPDATE:
-before the 'break': 
-- was working on getting the dataset together
-	- celex --> morphology, frequencies
-		- extracted all singular
-		- extracted all plural
-		- put everything (as well as above two) into human-readable format
-	- unimorph --> morphology
-		- separated unimorph nouns from rest
-	- subtlex --> frequencies
-QUESTIONS (pre-meeting, for Tim):
-- what format should I put the final dataset in?	TBD, DEPENDS ON WHAT WE ACTUALLY NEED
-- what info should I keep, what should I throw out?	KEEP EVERYTHING
-	- ex: stuff about verb tense isn't relevant, so throw it out, but stuff about case is???
+
+
 TODO:
+
 logistics
 - check offer letter to make sure names and dates are all correct
 	- print, sign, and put it in mail box, Tim will sign it and give it to office next week
@@ -69,6 +58,22 @@ tim's paper in this year's ACL
 tools
 - r tinyverse– might be better for this kind of thing
 - python pandas
+
+UPDATE:
+before the 'break': 
+- was working on getting the dataset together
+	- celex --> morphology, frequencies
+		- extracted all singular
+		- extracted all plural
+		- put everything (as well as above two) into human-readable format
+	- unimorph --> morphology
+		- separated unimorph nouns from rest
+	- subtlex --> frequencies
+
+QUESTIONS (pre-meeting, for Tim):
+- what format should I put the final dataset in?	TBD, DEPENDS ON WHAT WE ACTUALLY NEED
+- what info should I keep, what should I throw out?	KEEP EVERYTHING
+	- ex: stuff about verb tense isn't relevant, so throw it out, but stuff about case is???
 
 
 
