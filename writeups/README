@@ -1,0 +1,12 @@
+I use the naming convention:
+
+YYYY-MM-DD.Topic.Target
+
+The date usually is the due date for conferences or the submission date, which I push forward as it slips in time i.e., it ends up being the date the thing is finally submitted. If there are major revisions requireing a versionining I usually don't make a new directory, unless it is going to a new place.
+
+Topic - topic of the paper or other identifier (e.g. XTechReport)
+Target - journal, conference, or wherever this goes. 
+
+
+
+
