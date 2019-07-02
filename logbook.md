@@ -1,3 +1,26 @@
+##2019-07-02
+
+NOTES:
+- grammatical gender and syllable structure are probably the driving forces
+- could probably fill in parts of the corpus that we don't have by training models on what we do have
+
+TODO (for next time):
+finish getting exactly straight what his alg is:
+- level of abstraction that's:
+	how the kids actually figure stuff out
+		- general algorithm at every step
+- level of german
+
+continue trying to merge this corpus into 1
+
+look into stuff that exists to standardize the spelling
+- there's been at least one spelling reform since then
+
+
+later?
+- some version of a fragment grammar model?
+	- Tim will think about this one
+
 ##2019-06-28 Fri
 
 
