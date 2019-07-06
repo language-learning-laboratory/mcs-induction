@@ -1,0 +1,40 @@
+#  Lab Presentation Notes–March 2019
+
+
+presumably stages of grammars are also grammars themselves and not meta-grammars
+
+
+
+Vanna:
+"not addressing the fact that the exception to one of these rules might be the application of another rule"
+(Vanna's exception)
+
+
+
+Tim's optimization procedure: (around 1:19)
+- make a frequency ordered list of every single step
+- search for rules that match more or fewer of them with some input condition that do the same thing
+- if positing one of these rules makes it faster on average, we pull out those forms
+    - do that a couple of times such that we pull out all 6 of the german rules
+    - make sure the rules stay ordered in terms of elsewhere condition, in terms of specificity
+- if we pull out first a default rule and then later pull out a rule that is more specific but would misinflect some of the defaults, those couple of defaults have to go "back up"
+            - my q: where do they go back up to?
+- what is N in N/ln(N) criteria?
+    - now is it total number of exceptions 
+    - N is just subset of forms for which input condition holds
+
+will -ing -ang be extracted?
+    - not if there's a similar amount of dinged type regular verbs
+
+"bookkeeping" you gotta do:
+gotta make sure you pull out words from more general rules that you accidentally capture in more specific rules
+- if willing to do this ^ then can apply this repeatedly to same list of inputs
+
+
+tim likes optimization criterion that he lays out, but finds the simplifications unrealistic
+- like zipf for example
+
+
+also think that it's too strict for productivity
+- it's highly intolerant of exceptions, as N increases, the proportions of exceptions you're willing to tolerate goes down
+    - tim thinks this is probably wrong (imperically)
