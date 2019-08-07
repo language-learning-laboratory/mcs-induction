@@ -26,6 +26,12 @@ class ParserLogBook:
     def get_completeitem(self, id):
         return self.completeitems[((-id)-1)]
 
+    def getitem_fromID(self, id):
+        if id <= 0:
+            return self.get_partialitem(id)
+        else:
+            return self.get_completeitem(id)
+
     def discover_item(self, item):
         item.discover_item(self)
 
@@ -54,8 +60,8 @@ class Agenda:
     def __init__(self):
         pqueue = PriorityQueue()
 
-    def enqueue(self, item, just_used):
-        self.pqueue.put(item.priority(just_used))
+    def enqueue(self, item):
+        self.pqueue.put(item.priority())
 
     def dequeue(self):
         return self.pqueue.get()[1]
@@ -160,13 +166,12 @@ class PartialItem(Item):
         return self
 
 # for logbook
-
-
     def discover_item(self, logbook: ParserLogBook):
         logbook.partialitems.append(self)
         id = len(logbook.partialitems)-1
         logbook.partialitemkeys[self.key] = id
         self.id = id
+
 # for chart
     def partialitem_ids(self, chart:Chart):
         return chart.cells[self.end].partialitems
@@ -177,15 +182,26 @@ class PartialItem(Item):
             chart.cells.[self.end].partialitems[self.state].append(self.id)
         else:
             chart.cells.[self.end].partialitems[self.state] = [self.id]
+
 # for agenda
-    def priority(self, just_completed):
-        p = 4 * self.len() - 2 * int(not just_completed) - 1
+    def priority(self):
+        p = 2 * self.len() - 1
         return (p, self.id)
 
 # for fundamental rule
-
     def fundamental_rule(self, chart, agenda, logbook, grammar):
-        for category in chart.cells.
+        continue
+
+# for inference rule
+    def complete_partialitem(self, agenda, logbook, grammar):
+        continue
+
+    def inference_rule(self, agenda, logbook, grammar):
+        self.complete_partialitem(agenda, logbook, grammar)
+
+# for inside score update
+    def update_inside_score(self):
+        continue
 
 # COMPLETE ITEM #
 
@@ -212,15 +228,14 @@ class CompleteItem(Item):
         self.score += completion.score
         return completion
 
+# for logbook
     def discover_item(self, logbook: ParserLogBook):
         logbook.completeitems.append(self)
         id = -(len(logbook.completeitems))
         logbook.completeitemkeys[self.key] = id
         self.id = id
 
-    def completeitem_ids(self, chart:Chart):
-        return chart.cells[self.start].completeitems
-
+# for chart
     def completeitem_ids(self, chart:Chart):
         return chart.cells[self.start].completeitems
 
@@ -231,10 +246,25 @@ class CompleteItem(Item):
         else:
             chart.cells.[self.start].completeitems[self.category] = [self.id]
 
-    def priority(self, just_introduced_edge):
-        p = 4 * self.len() - 2*int(not just_introduced_edge)
+# for agenda
+    def priority(self):
+        p = 2 * self.len()
         return (p, self.id)
 
+# for fundamental rule
+    def fundamental_rule(self, chart, agenda, logbook, grammar):
+        continue
+
+# for inference rule
+    def introduce_partialitem(self, agenda, logbook, grammar):
+        continue
+
+    def inference_rule(self, agenda, logbook, grammar):
+        self.introduce_partialitem(agenda, logbook, grammar)
+
+# for inside score update
+    def update_inside_score(self):
+        continue
 
 ### ParseForest ###
 
