@@ -102,8 +102,11 @@ class PartialItemKey:
         self.end = end
         self.state = state
 
-    # def __hash__(self):
-    #     return hash((self.start, hash(self.end, hash(self.category)))
+    def __hash__(self):
+        return hash((self.start, self.end, self.state))
+
+    def __eq__(self, other):
+        return (self.start == other.start and self.end == other.end and self.state == other.state)
 
     def is_in_logbook(self, logbook:ParserLogBook):
         return (self in logbook.partialitemkeys)
@@ -127,6 +130,9 @@ class CompleteItemKey:
         self.start = start
         self.end = end
         self.category = category
+
+    def __hash__(self):
+        return hash((self.start, self.end, self.category))
 
     def __eq__(self, other):
         return (self.start == other.start and self.end == other.end and self.category == other.category)
