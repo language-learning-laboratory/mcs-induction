@@ -31,7 +31,6 @@ def process_item(item, chart, agenda, logbook, grammar):
         item.lastpopscore = item.score
         agenda.enqueue(item)
 
-
 def run_chartparser(grammar, input):
     chart, agenda, logbook = initialize(grammar,input)
     while agenda:
