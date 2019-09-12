@@ -1,11 +1,57 @@
-module PCFGGrammar
-export CFGrammar, is_possible_transition, completions, transition, isfinal
-
+module PCFGrammar
+export CFRules, CFGrammar, is_possible_transition, completions, transition, isfinal, startstate, startsymbols, types
 
 using LogProbs
 using StatsFuns.RFunctions: gammarand
-using StatsFuns: lbeta
-import Base: +, -, *, /, zero, one, <
+using SpecialFunctions: logbeta
+import Base: +, -, *, /, zero, one, <, ==
+
+
+
+#############################
+### Dirichlet Multinomial ###
+#############################
+
+function categorical_sample(tokens, weights)
+    T = eltype(weights)
+    x = rand(T) * sum(weights)
+    cum_weights = zero(T)
+    for (t, w) in zip(tokens, weights)
+        cum_weights += w
+        if cum_weights > x
+            return t
+        end
+    end
+end
+
+categorical_sample(d::Dict) = categorical_sample(keys(d), values(d))
+categorical_sample(v::Vector) = categorical_sample(1:length(v), v)
+
+abstract type Distribution{T} end
+
+mutable struct DirCat{T, C} <: Distribution{T}
+    counts :: Dict{T, C}
+end
+
+DirCat(support, priors) = DirCat(Dict(x => p for (x,p) in zip(support, priors)))
+support(dc::DirCat) = keys(dc.counts)
+
+function sample(dc::DirCat)
+    weights = [gammarand(c, 1) for c in values(dc.counts)]
+    categorical_sample(keys(dc.counts), weights)
+end
+
+function logscore(dc::DirCat, obs)
+    LogProb(logbeta(sum(values(dc.counts)), 1) - logbeta(dc.counts[obs], 1); islog=true)
+end
+
+function add_obs!(dc::DirCat, obs)
+    dc.counts[obs] += 1
+end
+
+function rm_obs!(dc::DirCat, obs)
+    dc.counts[obs] -= 1
+end
 
 
 ################################
@@ -39,39 +85,9 @@ function add_obs!(cond::SimpleCond{C,D,S}, obs, context) where {C,D,S}
     add_obs!(cond.dists[context], obs)
 end
 
-#############################
-### Dirichlet Multinomial ###
-#############################
-
-abstract type Distribution{T} end
-
-mutable struct DirCat{T, C} <: Distribution{T}
-    counts :: Dict{T, C}
-end
-
-DirCat(support, priors) = DirCat(Dict(x => p for (x,p) in zip(support, priors)))
-support(dc::DirCat) = keys(dc.counts)
-
-function sample(dc::DirCat)
-    weights = [gammarand(c, 1) for c in values(dc.counts)]
-    categorical_sample(keys(dc.counts), weights)
-end
-
-function logscore(dc::DirCat, obs)
-    LogProb(lbeta(sum(values(dc.counts)), 1) - lbeta(dc.counts[obs], 1))
-end
-
-function add_obs!(dc::DirCat, obs)
-    dc.counts[obs] += 1
-end
-
-function rm_obs!(dc::DirCat, obs)
-    dc.counts[obs] -= 1
-end
-
-##############
-### CFRule ###
-##############
+###############
+### CFRules ###
+###############
 
 mutable struct RunningCounter
     n :: Int
@@ -82,32 +98,33 @@ count!(c::RunningCounter) = c.n += 1
 
 rule_counter = RunningCounter()
 
-struct CFRule{LHS, RHS} # left hand side and right hand side of the rule
+struct CFRules{LHS, RHS} # left hand side and right hand side of the rule
     mappings ::Dict{LHS, Vector{RHS}}
     name :: Symbol
 end
 
-==(r1::CFRule, r2::CFRule) = r1.name == r2.name
-hash(r::CFRule, h::UInt) = hash(hash(CFRule, hash(r.name)), h)
+==(r1::CFRules, r2::CFRules) = r1.name == r2.name
+hash(r::CFRules, h::UInt) = hash(hash(CFRules, hash(r.name)), h)
 
-Base.show(io::IO, r::CFRule) = print(io, "CFRule($(r.name))")
+Base.show(io::IO, r::CFRules) = print(io, "CFRules($(r.name))")
 
-CFRule(pairs::Pair...) =
-    CFRule(Dict(pairs...), Symbol("rule", count!(rule_counter)))
-CFRule(g::Base.Generator) =
-    CFRule(Dict(g), Symbol("rule", count!(rule_counter)))
-CFRule(f::Function, lhss, name) =
-    CFRule(Dict(lhs => f(lhs) for lhs in lhss), name)
-CFRule(f::Function, lhss) =
-    CFRule(Dict(lhs => f(lhs) for lhs in lhss), Symbol("rule", count!(rule_counter)))
+CFRules(pairs::Pair...) =
+    CFRules(Dict(pairs...), Symbol("rules", count!(rule_counter)))
+CFRules(g::Base.Generator) =
+    CFRules(Dict(g), Symbol("rules", count!(rule_counter)))
+CFRules(f::Function, lhss, name) =
+    CFRules(Dict(lhs => f(lhs) for lhs in lhss), name)
+CFRules(f::Function, lhss) =
+    CFRules(Dict(lhs => f(lhs) for lhs in lhss), Symbol("rules", count!(rule_counter)))
 
-lhss(r::CFRule) = keys(r.mappings) # aka domain
-isapplicable(r::CFRule, lhs) = haskey(r.mappings, lhs)
-(r::CFRule)(lhs) = r.mappings[lhs]
+lhss(r::CFRules) = keys(r.mappings) # aka domain
+isapplicable(r::CFRules, lhs) = haskey(r.mappings, lhs)
+(r::CFRules)(lhs) = r.mappings[lhs]
 
 ###############
 ### CFState ###
 ###############
+
 
 mutable struct CompletionAutomaton{Cat,Comp} # category, completion
     transitions :: Vector{Dict{Cat, Int}}
@@ -123,6 +140,7 @@ is_possible_transition(ca::CompletionAutomaton, s, c) = haskey(ca.transitions[s]
 transition(ca::CompletionAutomaton, s, c) = ca.transitions[s][c]
 completions(ca::CompletionAutomaton, s) = ca.completions[s]
 
+#Not sure what is going on here
 function add_completion!(ca::CompletionAutomaton{Cat,Comp}, comp, categories) where {Cat,Comp}
     s = 1
     for c in categories
@@ -137,37 +155,36 @@ function add_completion!(ca::CompletionAutomaton{Cat,Comp}, comp, categories) wh
     push!(ca.completions[s], comp)
 end
 
-function add_rule!(ca::CompletionAutomaton, r::CFRule)
+function add_rule!(ca::CompletionAutomaton, r::CFRules)
     for lhs in lhss(r)
         add_completion!(ca, (lhs, r), r(lhs))
     end
 end
-
 
 #################
 ### CFGrammar ###
 #################
 
 struct CFGrammar{C, T, Cond, F}
-    comp_automtn  :: CompletionAutomaton{C, Tuple{C, CFRule{C, C}}}
+    comp_automtn  :: CompletionAutomaton{C, Tuple{C, CFRules{C, C}}}
     startsymbols  :: Vector{C}
-    terminal_dict :: Dict{T, Vector{Tuple{C, CFRule{C, T}}}}
+    terminal_dict :: Dict{T, Vector{Tuple{C, CFRules{C, T}}}}
     cond          :: Cond # conditional scoring
     dependent_components::F
 end
 
 function CFGrammar(
-        category_rules::Vector{CFRule{C, C}},
-        terminal_rules::Vector{CFRule{C, T}},
+        category_rules::Vector{CFRules{C, C}},
+        terminal_rules::Vector{CFRules{C, T}},
         startsymbols  ::Vector{C},
         dependent_components=identity::Function
-    ) where {C, T}
-    comp_automtn = CompletionAutomaton(C, Tuple{C, CFRule{C, C}})
+        ) where {C, T}
+    comp_automtn = CompletionAutomaton(C, Tuple{C, CFRules{C, C}})
     for r in category_rules
         add_rule!(comp_automtn, r)
     end
 
-    terminal_dict = Dict{T, Vector{Tuple{C, CFRule{C, T}}}}()
+    terminal_dict = Dict{T, Vector{Tuple{C, CFRules{C, T}}}}()
     for r in terminal_rules
         for lhs in lhss(r)
         t = r(lhs)[1]
@@ -179,13 +196,13 @@ function CFGrammar(
         end
     end
 
-    applicable_rules = Dict{C, Vector{CFRule}}()
-    for r in CFRule[category_rules; terminal_rules]
+    applicable_rules = Dict{C, Vector{CFRules}}()
+    for r in CFRules[category_rules; terminal_rules]
         for c in lhss(r)
             if haskey(applicable_rules, c)
                 push!(applicable_rules[c], r)
             else
-                applicable_rules[c] = CFRule[r]
+                applicable_rules[c] = CFRules[r]
             end
         end
     end
@@ -194,7 +211,7 @@ function CFGrammar(
         Dict(
             dependent_components(c) => let rules = applicable_rules[c]
                 n = length(rules)
-                k = count(isa.(rules, CFRule{C, T})) # number terminal rules
+                k = count(isa.(rules, CFRules{C, T})) # number terminal rules
                 DirCat(rules, [fill(1.0, n-k); fill(1/k, k)])
             end
             for c in keys(applicable_rules)
@@ -220,10 +237,8 @@ completions(g::CFGrammar, t) =
 
 score(g::CFGrammar, c, r) = logscore(g.cond, r, dependent_components(g, c))
 
-@inline function types(grammar::CFGrammar{C, T, Cond}) where {C, T, Cond}
-    C, T, CFRule{C, C}, CFRule{C, T}, Int, LogProb
+@inline function types(grammar::CFGrammar{C, T, Cond, F}) where {C, T, Cond, F}
+    C, T, CFRules{C, C}, CFRules{C, T}, Int, LogProb
 end
-
-
 
 end
