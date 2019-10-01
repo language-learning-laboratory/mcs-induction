@@ -1,8 +1,8 @@
 module ChartParser
-export run_chartparser, CFRules, CFGrammar
+export run_chartparser, CFRule, MetaRule, CFGrammar, score, Grammar
 
 include("./pcfg_grammar.jl")
-import .PCFGrammar: CFRules, CFGrammar, is_possible_transition, completions, transition, isfinal, startstate, types, startsymbols
+import .PCFGrammar: CFRule, MetaRule, CFGrammar, is_possible_transition, completions, transition, isfinal, startstate, types, startsymbols, Grammar
 #include("./Trees.jl")
 # using .Trees: Tree, EmptyTree, TreeNode, isterminal, insert_child!, tree
 

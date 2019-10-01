@@ -1,16 +1,16 @@
 
 include("./chartparser.jl")
-using .ChartParser: run_chartparser, CFRules, CFGrammar
+using .ChartParser: run_chartparser, MetaRule, CFRule, CFGrammar, score
 
 ## Test 1
 
-ascend = CFRules(1:9) do i
+ascend = MetaRule(1:9) do i
     [i, i+1]
 end
-double = CFRules(1:10) do i
+double = MetaRule(1:10) do i
     [i, i]
 end
-terminate = CFRules(1:10) do i
+terminate = MetaRule(1:10) do i
     [string(i)]
 end
 
