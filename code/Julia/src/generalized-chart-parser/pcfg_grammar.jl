@@ -1,107 +1,11 @@
 module PCFGrammar
-export CFRule, MetaRule, CFGrammar, is_possible_transition, completions, transition, isfinal, startstate, startsymbols, types, Grammar
-
+export CFRule, MetaRule, CFGrammar, is_possible_transition, completions, transition, isfinal, startstate, startsymbols, types, Grammar, CompletionAutomaton, DiffGrammar
 using LogProbs
-using StatsFuns.RFunctions: gammarand
-using SpecialFunctions: logbeta
 import Base: +, -, *, /, zero, one, <, ==
 
+include("./distributions.jl")
+import .Distributions: categorical_sample, Distribution, CatDist, DirCat, DiffCatDist, SimpleCond, support, logscore, sample, add_obs!, rm_obs!
 
-#####################
-### Distributions ###
-#####################
-
-function categorical_sample(tokens, weights)
-    T = eltype(weights)
-    x = rand(T) * sum(weights)
-    cum_weights = zero(T)
-    for (t, w) in zip(tokens, weights)
-        cum_weights += w
-        if cum_weights > x
-            return t
-        end
-    end
-end
-
-categorical_sample(d::Dict) = categorical_sample(keys(d), values(d))
-categorical_sample(v::Vector) = categorical_sample(1:length(v), v)
-
-abstract type Distribution{T} end
-
-################################
-### Categorical Distribution ###
-################################
-
-mutable struct CatDist{T} <: Distribution{T}
-    probs :: Dict{T, LogProb}
-end
-
-support(cd::CatDist) = keys(cd.probs)
-
-logscore(cd::CatDist, x) = cd.probs[x]
-sample(cd::CatDist) = categorical_sample(cd.probs)
-add_obs!(cd::CatDist, obs, context) = nothing
-remove_obs!(cd::CatDist, obs, context) = nothing
-
-#############################
-### Dirichlet Categorical ###
-#############################
-
-mutable struct DirCat{T, C} <: Distribution{T}
-    counts :: Dict{T, C}
-end
-
-DirCat(support, priors) = DirCat(Dict(x => p for (x,p) in zip(support, priors)))
-support(dc::DirCat) = keys(dc.counts)
-
-function sample(dc::DirCat)
-    weights = [gammarand(c, 1) for c in values(dc.counts)]
-    categorical_sample(keys(dc.counts), weights)
-end
-
-function logscore(dc::DirCat, obs)
-    LogProb(logbeta(sum(values(dc.counts)), 1) - logbeta(dc.counts[obs], 1); islog=true)
-end
-
-function add_obs!(dc::DirCat, obs)
-    dc.counts[obs] += 1
-end
-
-function rm_obs!(dc::DirCat, obs)
-    dc.counts[obs] -= 1
-end
-
-
-################################
-### Conditional Distribution ###
-################################
-
-struct SimpleCond{C, D, S} # context, distribution, support
-    dists   :: Dict{C, D}
-    support :: S
-    SimpleCond(dists::Dict{C, D}, support::S) where {C, D, S} =
-        new{C, D, S}(dists, unique(support))
-end
-
-function SimpleCond(dists::AbstractDict)
-    SimpleCond(
-        dists,
-        vcat([collect(support(dist)) for dist in values(dists)]...)
-    )
-end
-
-sample(sc::SimpleCond, context, args...) = sample(sc.dists[context], args...)
-logscore(sc::SimpleCond, obs, context) = logscore(sc.dists[context], obs)
-rm_obs!(sc::SimpleCond, obs, context) = rm_obs!(sc.dists[context], obs)
-
-score_type(::SimpleCond) = LogProb
-
-function add_obs!(cond::SimpleCond{C,D,S}, obs, context) where {C,D,S}
-    if !haskey(cond.dists, context)
-        cond.dists[context] = D(cond.support)
-    end
-    add_obs!(cond.dists[context], obs)
-end
 
 ###############
 ### CFRule  ###
@@ -416,5 +320,109 @@ function Grammar(rules_string::AbstractString, startsymbols, Score=LogProb)
     category_rules, terminal_rules = split_category_from_terminal_rules(rules_string)
     CFGrammar(category_rules, terminal_rules, startsymbols, Score)
 end
+
+################### SCRATCH ################
+
+function DiffCFGrammar(
+        category_rules_strings::Vector{Vector{C}},
+        terminal_rules_strings::Vector{Vector{T}},
+        startsymbols::Vector{C},
+        Score,
+        dependent_components=identity::Function) where {C,T}
+
+    if length(terminal_rules_strings[1]) > 2 #if probability included in strings
+
+        category_rules_with_probs = [
+            (MetaRule([CFRule(s[2],[s[3:end]...])]), Score(parse(Float64, s[1]), islog=true))
+            for s in category_rules_strings]
+        terminal_rules_with_probs = [
+            (MetaRule([CFRule(s[2],[s[3:end]...])]), Score(parse(Float64, s[1]), islog=true))
+            for s in terminal_rules_strings]
+
+        category_rules = [mr for (mr,p) in category_rules_with_probs]
+        terminal_rules = [mr for (mr,p) in terminal_rules_with_probs]
+
+        comp_automtn = CompletionAutomaton(C, Tuple{C, MetaRule{C, C}})
+        for mr in category_rules
+            add_rule!(comp_automtn, mr)
+        end
+
+        terminal_dict = Dict{T, Vector{Tuple{C, MetaRule{C, T}}}}()
+        for mr in terminal_rules
+            for lhs in lhss(mr)
+                t = mr(lhs)[1]
+                if haskey(terminal_dict, t)
+                    push!(terminal_dict[t], (lhs, mr))
+                else
+                    terminal_dict[t] = [(lhs, mr)]
+                end
+            end
+        end
+
+        all_rules_with_probs = [category_rules_with_probs;terminal_rules_with_probs]
+
+        cond = SimpleCond(Dict(
+            cat => DiffCatDist(
+                (mr,p) for (mr,p) in all_rules_with_probs if isapplicable(mr, cat)
+            ))
+            for cat in unique(Base.reduce(append!, [lhss(mr) for (mr,p) in all_rules_with_probs], init=T[])))
+
+
+    else
+        category_rules = [MetaRule([CFRule(s[1],[s[2:end]...])]) for s in category_rules_strings]
+        terminal_rules = [MetaRule([CFRule(s[1],[s[2:end]...])]) for s in terminal_rules_strings]
+
+            comp_automtn = CompletionAutomaton(C, Tuple{C, MetaRule{C, C}})
+        for mr in category_rules
+            add_rule!(comp_automtn, mr)
+        end
+
+        terminal_dict = Dict{T, Vector{Tuple{C, MetaRule{C, T}}}}()
+        for r in terminal_rules
+            for lhs in lhss(r)
+            t = r(lhs)[1]
+                if haskey(terminal_dict, t)
+                    push!(terminal_dict[t], (lhs, r))
+                else
+                    terminal_dict[t] = [(lhs, r)]
+                end
+            end
+        end
+
+        applicable_rules = Dict{C, Vector{MetaRule}}()
+        for r in MetaRule[category_rules; terminal_rules]
+            for c in lhss(r)
+                if haskey(applicable_rules, c)
+                    push!(applicable_rules[c], r)
+                else
+                    applicable_rules[c] = MetaRule[r]
+                end
+            end
+        end
+
+        cond = SimpleCond(
+            Dict(
+                dependent_components(c) => let rules = applicable_rules[c]
+                    n = length(rules)
+                    k = count(isa.(rules, MetaRule{C, T})) # number terminal rules
+                    probs = [Score(p) for p in [fill(1.0, n-k); fill(1/k, k)]]
+                    DiffCatDist(rules, probs)
+
+                end
+                for c in keys(applicable_rules))
+            )
+    end
+    CFGrammar(comp_automtn, startsymbols, terminal_dict, cond, dependent_components)
+end
+
+
+function DiffGrammar(rules_string::AbstractString, startsymbols, Score=LogProb)
+    category_rules, terminal_rules = split_category_from_terminal_rules(rules_string)
+    category_rules = [ s[2:end] for s in category_rules ]
+    terminal_rules = [ s[2:end] for s in terminal_rules ]
+    DiffCFGrammar(category_rules, terminal_rules, startsymbols, Score)
+end
+
+
 
 end

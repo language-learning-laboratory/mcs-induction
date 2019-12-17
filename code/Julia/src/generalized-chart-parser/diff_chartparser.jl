@@ -1,4 +1,4 @@
-module ChartParser
+module DiffChartParser
 export run_chartparser, CFRule, MetaRule, CFGrammar, score, Grammar, CompletionAutomaton, DiffGrammar
 
 include("./pcfg_grammar.jl")
